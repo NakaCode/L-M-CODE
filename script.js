@@ -67,11 +67,6 @@ const carousel = document.querySelector('.testimonial-carousel');
 if (track && carousel) {
   const originals = Array.from(track.children);
   const originalCount = originals.length;
-  originals.forEach(card => {
-    const clone = card.cloneNode(true);
-    clone.setAttribute('aria-hidden', 'true');
-    track.appendChild(clone);
-  });
 
   let offset = 0;
   let halfWidth = 0;
@@ -83,13 +78,29 @@ if (track && carousel) {
   let velocity = 0;
   let lastDragX = 0;
 
-  // Use the first clone's offsetLeft as the exact loop period.
-  // This correctly includes the gap between the last original and the first clone,
-  // avoiding drift that caused the abrupt jump at the end of each cycle.
-  const measure = () => {
+  // Clone enough full sets so the track is always wider than the viewport
+  // plus one loop period — otherwise the right side goes empty before wrapping.
+  const ensureClones = () => {
     const firstClone = track.children[originalCount];
-    if (firstClone) halfWidth = firstClone.offsetLeft;
+    if (!firstClone) return;
+    halfWidth = firstClone.offsetLeft;
+    const needed = carousel.offsetWidth + halfWidth;
+    while (track.scrollWidth < needed) {
+      for (let i = 0; i < originalCount; i++) {
+        const clone = originals[i].cloneNode(true);
+        clone.setAttribute('aria-hidden', 'true');
+        track.appendChild(clone);
+      }
+    }
   };
+  // Seed with one set of clones so ensureClones can measure the period.
+  originals.forEach(card => {
+    const clone = card.cloneNode(true);
+    clone.setAttribute('aria-hidden', 'true');
+    track.appendChild(clone);
+  });
+
+  const measure = () => { ensureClones(); };
   measure();
   window.addEventListener('resize', measure);
   window.addEventListener('load', measure);
@@ -154,6 +165,31 @@ if (track && carousel) {
   carousel.addEventListener('touchstart', (e) => onDown(e.touches[0].clientX), { passive: true });
   window.addEventListener('touchmove', (e) => onMove(e.touches[0].clientX), { passive: true });
   window.addEventListener('touchend', onUp);
+}
+
+// Scroll rail — glow position follows scroll progress
+const railGlow = document.querySelector('.scroll-rail-glow');
+if (railGlow) {
+  let ticking = false;
+  const updateRail = () => {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = docHeight > 0 ? scrollTop / docHeight : 0;
+    const railHeight = window.innerHeight;
+    const glowHeight = railHeight * 0.18;
+    const maxTravel = railHeight - glowHeight;
+    railGlow.style.transform = `translateY(${progress * maxTravel}px)`;
+    ticking = false;
+  };
+  const onScroll = () => {
+    if (!ticking) {
+      requestAnimationFrame(updateRail);
+      ticking = true;
+    }
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', updateRail);
+  updateRail();
 }
 
 // Footer year
